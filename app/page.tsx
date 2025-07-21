@@ -7,25 +7,42 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 
+// --- CAMBIO 1: Definimos la estructura de los datos ---
+// Esto le dice a TypeScript cómo es un resultado de búsqueda.
+interface Metadata {
+  coursename: string;
+  id_subject: number;
+  modulename: string;
+  moduleprofile: string;
+  moduleurl: string;
+  sectionname: string;
+  sectionurl: string;
+  type: string;
+}
+
+interface SearchResult {
+  id: string;
+  score: number;
+  values: any[];
+  metadata: Metadata;
+}
+
 export default function Component() {
-  // --- ESTADOS (Se mantienen igual, pero uno nuevo para los resultados) ---
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
-  const [searchResults, setSearchResults] = useState([]) // <-- 1. Estado para guardar los resultados REALES
+  // --- CAMBIO 2: Aplicamos el nuevo tipo al estado ---
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
-  // ❗ URL de Producción actualizada
   const N8N_WEBHOOK_URL = 'https://pixarron.app.n8n.cloud/webhook/d87b3f36-9d36-4e1a-bb86-4fabdfd2086e';
 
-  // --- FUNCIÓN DE BÚSQUEDA (Aquí está la magia) ---
-  const handleSearch = async () => { // <-- 2. Convertimos la función a async
+  const handleSearch = async () => {
     if (!searchQuery.trim() || isSearching) return
 
     setIsSearching(true)
     setHasSearched(true)
-    setSearchResults([]) // Limpiamos resultados anteriores
+    setSearchResults([])
 
-    // <-- 3. Reemplazamos la simulación con la llamada real a n8n
     try {
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
@@ -39,25 +56,22 @@ export default function Component() {
         throw new Error(`Error en la respuesta de n8n: ${response.statusText}`);
       }
 
-      // Asumimos que n8n devuelve un objeto JSON
       const data = await response.json();
-      // CORRECCIÓN: Accedemos directamente a la clave "matches" del objeto
-      setSearchResults(data.matches || []); // Guardamos los resultados en el estado
+      setSearchResults(data.matches || []);
 
     } catch (error) {
       console.error("Error al conectar con n8n:", error);
-      setSearchResults([]); // En caso de error, aseguramos que los resultados estén vacíos
+      setSearchResults([]);
     } finally {
-      setIsSearching(false) // Esto se ejecuta siempre, al final
+      setIsSearching(false)
     }
   }
 
-  // --- OTRAS FUNCIONES (Se mantienen igual) ---
   const handleReset = () => {
     setSearchQuery("")
     setIsSearching(false)
     setHasSearched(false)
-    setSearchResults([]) // <-- También limpiamos los resultados aquí
+    setSearchResults([])
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -77,8 +91,6 @@ export default function Component() {
     if (percentage >= 45) return "bg-yellow-500"
     return "bg-red-500"
   }
-
-  // <-- 4. El array de datos de ejemplo se ha eliminado. Ya no es necesario.
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -121,18 +133,17 @@ export default function Component() {
                 : "Esperando resultados..."}
           </div>
 
-          {/* <-- 5. El renderizado ahora usa los datos reales de n8n */}
           {!isSearching && hasSearched && (
             <div className="space-y-4">
-              {searchResults.map((result: any) => ( // <-- Usamos el estado `searchResults`
+              {/* --- CAMBIO 3: Usamos el nuevo tipo en el map --- */}
+              {searchResults.map((result: SearchResult) => (
                 <div
-                  key={result.id} // <-- Usamos el ID que viene de n8n
+                  key={result.id}
                   className="bg-white border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold mb-2">
-                        {/* Usamos las claves del objeto `metadata` de n8n */}
                         <a href={result.metadata.moduleurl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline">
                           {result.metadata.modulename}
                         </a>
@@ -141,7 +152,6 @@ export default function Component() {
                     <div className="ml-4 min-w-[120px]">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          {/* Calculamos el porcentaje a partir de `score` */}
                           <div
                             className={`h-2 rounded-full ${getProgressBarColor(Math.round(result.score * 100))}`}
                             style={{ width: `${Math.round(result.score * 100)}%` }}
