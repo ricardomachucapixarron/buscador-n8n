@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 
-// --- CAMBIO 1: Definimos la estructura de los datos ---
+// --- Definimos la estructura de los datos ---
 // Esto le dice a TypeScript cómo es un resultado de búsqueda.
 interface Metadata {
   coursename: string;
@@ -23,7 +23,9 @@ interface Metadata {
 interface SearchResult {
   id: string;
   score: number;
-  values: any[];
+  // --- CORRECCIÓN: Cambiamos 'any[]' por 'unknown[]' ---
+  // Esto soluciona el error de compilación.
+  values: unknown[];
   metadata: Metadata;
 }
 
@@ -31,7 +33,6 @@ export default function Component() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
-  // --- CAMBIO 2: Aplicamos el nuevo tipo al estado ---
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
   const N8N_WEBHOOK_URL = 'https://pixarron.app.n8n.cloud/webhook/d87b3f36-9d36-4e1a-bb86-4fabdfd2086e';
@@ -57,6 +58,7 @@ export default function Component() {
       }
 
       const data = await response.json();
+      // Asumimos que la respuesta de n8n es un objeto con la clave "matches"
       setSearchResults(data.matches || []);
 
     } catch (error) {
@@ -135,7 +137,6 @@ export default function Component() {
 
           {!isSearching && hasSearched && (
             <div className="space-y-4">
-              {/* --- CAMBIO 3: Usamos el nuevo tipo en el map --- */}
               {searchResults.map((result: SearchResult) => (
                 <div
                   key={result.id}
