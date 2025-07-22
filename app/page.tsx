@@ -37,10 +37,8 @@ export default function Component() {
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [selectedType, setSelectedType] = useState("question")
-  // --- Estado para los resultados reales que vienen de n8n ---
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
-  // --- URL de tu workflow de n8n ---
   const N8N_WEBHOOK_URL = 'https://pixarron.app.n8n.cloud/webhook/d87b3f36-9d36-4e1a-bb86-4fabdfd2086e';
 
   const handleSearch = async () => {
@@ -54,7 +52,6 @@ export default function Component() {
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // --- Enviamos la consulta y el tipo seleccionado a n8n ---
         body: JSON.stringify({ 
           textoBusqueda: searchQuery,
           tipoDeBusqueda: selectedType 
@@ -64,7 +61,6 @@ export default function Component() {
       if (!response.ok) throw new Error(`Error en la respuesta de n8n: ${response.statusText}`);
 
       const data = await response.json();
-      // Leemos la respuesta de n8n (puede ser un objeto o un array de objetos)
       const matches = data.matches || (Array.isArray(data) && data[0]?.matches) || [];
       setSearchResults(matches);
 
@@ -118,11 +114,11 @@ export default function Component() {
   }
 
   // --- Componente de Tarjeta actualizado para ser flexible ---
+  // Revisa esta sección para asegurarte de que coincide con tu código.
   const ResultCard = ({ result }: { result: SearchResult }) => {
     const { metadata } = result;
     const percentage = Math.round(result.score * 100);
     
-    // Lógica para mostrar el título, descripción y URL correctos
     const title = metadata.modulename || `Pregunta de ${metadata.coursename}`;
     const description = metadata.moduleprofile || metadata.questionprofile || "No hay descripción disponible.";
     const url = metadata.moduleurl || metadata.question_preview || "#";
@@ -155,9 +151,11 @@ export default function Component() {
             </div>
           </div>
 
+          {/* ESTA ES LA SECCIÓN CLAVE QUE MUESTRA LAS ETIQUETAS */}
           <div className="flex flex-wrap gap-4 mb-3">
             {metadata.coursename && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Curso: {metadata.coursename}</span>}
             {metadata.sectionname && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Sección: {metadata.sectionname}</span>}
+            {/* Se muestran solo si existen en los datos */}
             {metadata.dificultad_estimada && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">{metadata.dificultad_estimada}</span>}
             {metadata.habilidad_cognitiva_bloom && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">{metadata.habilidad_cognitiva_bloom}</span>}
             <span className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded font-medium">
@@ -234,6 +232,7 @@ export default function Component() {
                 : "Esperando resultados..."}
           </div>
 
+          {/* Tarjetas de resultados */}
           {!isSearching && hasSearched && (
             <div className="space-y-4">
               {searchResults.map((result: SearchResult) => (
