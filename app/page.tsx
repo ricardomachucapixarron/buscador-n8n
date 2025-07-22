@@ -8,23 +8,20 @@ import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 
 // --- Definimos la estructura de los datos ---
-// Esto le dice a TypeScript cómo es un resultado de búsqueda.
+// Hacemos los campos opcionales para que se adapten a cualquier tipo de resultado
 interface Metadata {
-  coursename: string;
-  id_subject: number;
-  modulename: string;
-  moduleprofile: string;
-  moduleurl: string;
-  sectionname: string;
-  sectionurl: string;
   type: string;
+  coursename?: string;
+  sectionname?: string;
+  title?: string; // Para títulos genéricos
+  description?: string; // Para descripciones genéricas
+  url?: string; // Para URLs genéricas
+  // Puedes añadir más campos específicos si los necesitas
 }
 
 interface SearchResult {
   id: string;
   score: number;
-  // --- CORRECCIÓN: Cambiamos 'any[]' por 'unknown[]' ---
-  // Esto soluciona el error de compilación.
   values: unknown[];
   metadata: Metadata;
 }
@@ -33,32 +30,34 @@ export default function Component() {
   const [searchQuery, setSearchQuery] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
+  const [selectedType, setSelectedType] = useState("question")
+  // --- Estado para los resultados reales ---
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
+  // --- URL de tu workflow de n8n ---
   const N8N_WEBHOOK_URL = 'https://pixarron.app.n8n.cloud/webhook/d87b3f36-9d36-4e1a-bb86-4fabdfd2086e';
 
   const handleSearch = async () => {
-    if (!searchQuery.trim() || isSearching) return
+    if (!searchQuery.trim()) return;
 
     setIsSearching(true)
     setHasSearched(true)
     setSearchResults([])
-
+    
     try {
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ textoBusqueda: searchQuery }),
+        headers: { 'Content-Type': 'application/json' },
+        // --- Enviamos la consulta y el tipo seleccionado a n8n ---
+        body: JSON.stringify({ 
+          textoBusqueda: searchQuery,
+          tipoDeBusqueda: selectedType 
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Error en la respuesta de n8n: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Error: ${response.statusText}`);
 
       const data = await response.json();
-      // Asumimos que la respuesta de n8n es un objeto con la clave "matches"
       setSearchResults(data.matches || []);
 
     } catch (error) {
@@ -73,6 +72,7 @@ export default function Component() {
     setSearchQuery("")
     setIsSearching(false)
     setHasSearched(false)
+    setSelectedType("question")
     setSearchResults([])
   }
 
@@ -83,15 +83,30 @@ export default function Component() {
   }
 
   const getProgressColor = (percentage: number) => {
-    if (percentage >= 60) return "text-green-600"
-    if (percentage >= 45) return "text-yellow-600"
+    if (percentage > 50) return "text-green-600"
+    if (percentage >= 30) return "text-yellow-600"
     return "text-red-600"
   }
 
   const getProgressBarColor = (percentage: number) => {
-    if (percentage >= 60) return "bg-green-500"
-    if (percentage >= 45) return "bg-yellow-500"
+    if (percentage > 50) return "bg-green-500"
+    if (percentage >= 30) return "bg-yellow-500"
     return "bg-red-500"
+  }
+
+  const contentTypes = [
+    { label: "Pregunta", value: "question" },
+    { label: "Cuestionario", value: "quiz" },
+    { label: "Recurso", value: "url" },
+  ]
+
+  const getTypeLabel = (value: string) => {
+    const type = contentTypes.find((t) => t.value === value)
+    return type ? type.label : value
+  }
+
+  const getTypeLabelLower = (value: string) => {
+    return getTypeLabel(value).toLowerCase()
   }
 
   return (
@@ -101,10 +116,33 @@ export default function Component() {
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Buscador de Contenido Educativo</h1>
         </div>
 
+        {/* Selector de tipo de contenido */}
+        {!hasSearched && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">Tipo de contenido:</label>
+            <div className="flex gap-6 justify-center">
+              {contentTypes.map((type) => (
+                <label key={type.value} className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="contentType"
+                    value={type.value}
+                    checked={selectedType === type.value}
+                    onChange={(e) => setSelectedType(e.target.value)}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 focus:ring-2"
+                    disabled={isSearching}
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">{type.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3 mb-8">
           <Input
             type="text"
-            placeholder="Ingresa tu búsqueda..."
+            placeholder={`Buscar ${getTypeLabelLower(selectedType)}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -129,12 +167,13 @@ export default function Component() {
         <div className="border-t pt-6">
           <div className="text-center text-gray-500 text-lg mb-6">
             {isSearching
-              ? "Cargando resultados..."
+              ? `Cargando ${getTypeLabelLower(selectedType)}...`
               : hasSearched
-                ? `Resultados de búsqueda (${searchResults.length} encontrados):`
+                ? `${getTypeLabel(selectedType)} encontradas (${searchResults.length} resultados):`
                 : "Esperando resultados..."}
           </div>
 
+          {/* Tarjetas de resultados */}
           {!isSearching && hasSearched && (
             <div className="space-y-4">
               {searchResults.map((result: SearchResult) => (
@@ -145,8 +184,8 @@ export default function Component() {
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold mb-2">
-                        <a href={result.metadata.moduleurl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline">
-                          {result.metadata.modulename}
+                        <a href={result.metadata.url || '#'} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline">
+                          {result.metadata.title || 'Resultado sin título'}
                         </a>
                       </h3>
                     </div>
@@ -166,13 +205,16 @@ export default function Component() {
                   </div>
 
                   <div className="flex gap-4 mb-3">
-                    <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Curso: {result.metadata.coursename}</span>
-                    <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    {result.metadata.coursename && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Curso: {result.metadata.coursename}</span>}
+                    {result.metadata.sectionname && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
                       Sección: {result.metadata.sectionname}
+                    </span>}
+                    <span className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded font-medium">
+                      {getTypeLabel(result.metadata.type)}
                     </span>
                   </div>
 
-                  <p className="text-gray-700 leading-relaxed">{result.metadata.moduleprofile}</p>
+                  <p className="text-gray-700 leading-relaxed">{result.metadata.description || 'No hay descripción disponible.'}</p>
                 </div>
               ))}
             </div>
