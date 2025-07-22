@@ -8,15 +8,23 @@ import { Button } from "@/components/ui/button"
 import { Search } from "lucide-react"
 
 // --- Definimos la estructura de los datos ---
-// Hacemos los campos opcionales para que se adapten a cualquier tipo de resultado
+// Esta interfaz describe todos los campos posibles que pueden llegar desde n8n
+// para cualquier tipo de resultado (módulo, pregunta, etc.).
 interface Metadata {
   type: string;
   coursename?: string;
   sectionname?: string;
-  title?: string; // Para títulos genéricos
-  description?: string; // Para descripciones genéricas
-  url?: string; // Para URLs genéricas
-  // Puedes añadir más campos específicos si los necesitas
+  // Campos para módulos y recursos
+  modulename?: string;
+  moduleprofile?: string;
+  moduleurl?: string;
+  // Campos para preguntas
+  questionprofile?: string;
+  question_preview?: string;
+  // Campos genéricos como respaldo
+  title?: string;
+  description?: string;
+  url?: string;
 }
 
 interface SearchResult {
@@ -31,10 +39,8 @@ export default function Component() {
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [selectedType, setSelectedType] = useState("question")
-  // --- Estado para los resultados reales ---
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
-  // --- URL de tu workflow de n8n ---
   const N8N_WEBHOOK_URL = 'https://pixarron.app.n8n.cloud/webhook/d87b3f36-9d36-4e1a-bb86-4fabdfd2086e';
 
   const handleSearch = async () => {
@@ -48,7 +54,6 @@ export default function Component() {
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        // --- Enviamos la consulta y el tipo seleccionado a n8n ---
         body: JSON.stringify({ 
           textoBusqueda: searchQuery,
           tipoDeBusqueda: selectedType 
@@ -108,6 +113,61 @@ export default function Component() {
   const getTypeLabelLower = (value: string) => {
     return getTypeLabel(value).toLowerCase()
   }
+
+  // --- Componente de Tarjeta actualizado para usar los campos correctos ---
+  // Esta es la parte clave que soluciona el problema.
+  const ResultCard = ({ result }: { result: SearchResult }) => {
+    const { metadata } = result;
+    const percentage = Math.round(result.score * 100);
+    
+    // Lógica para mostrar el título, descripción y URL correctos,
+    // buscando en los campos que realmente envía n8n.
+    const title = metadata.modulename || metadata.title || 'Resultado sin título';
+    const description = metadata.moduleprofile || metadata.questionprofile || metadata.description || "No hay descripción disponible.";
+    const url = metadata.moduleurl || metadata.question_preview || metadata.url || "#";
+
+    return (
+        <div
+          key={result.id}
+          className="bg-white border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1 pr-4">
+              <h3 className="text-xl font-semibold mb-2">
+                <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline">
+                  {title}
+                </a>
+              </h3>
+            </div>
+            <div className="ml-4 min-w-[120px]">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex-1 bg-gray-200 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${getProgressBarColor(percentage)}`}
+                    style={{ width: `${percentage}%` }}
+                  ></div>
+                </div>
+                <span className={`text-sm font-medium ${getProgressColor(percentage)}`}>
+                  {percentage}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-4 mb-3">
+            {metadata.coursename && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Curso: {metadata.coursename}</span>}
+            {metadata.sectionname && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+              Sección: {metadata.sectionname}
+            </span>}
+            <span className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded font-medium">
+              {getTypeLabel(metadata.type)}
+            </span>
+          </div>
+
+          <p className="text-gray-700 leading-relaxed">{description}</p>
+        </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -177,45 +237,7 @@ export default function Component() {
           {!isSearching && hasSearched && (
             <div className="space-y-4">
               {searchResults.map((result: SearchResult) => (
-                <div
-                  key={result.id}
-                  className="bg-white border rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold mb-2">
-                        <a href={result.metadata.url || '#'} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline">
-                          {result.metadata.title || 'Resultado sin título'}
-                        </a>
-                      </h3>
-                    </div>
-                    <div className="ml-4 min-w-[120px]">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${getProgressBarColor(Math.round(result.score * 100))}`}
-                            style={{ width: `${Math.round(result.score * 100)}%` }}
-                          ></div>
-                        </div>
-                        <span className={`text-sm font-medium ${getProgressColor(Math.round(result.score * 100))}`}>
-                          {Math.round(result.score * 100)}%
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-4 mb-3">
-                    {result.metadata.coursename && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Curso: {result.metadata.coursename}</span>}
-                    {result.metadata.sectionname && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      Sección: {result.metadata.sectionname}
-                    </span>}
-                    <span className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded font-medium">
-                      {getTypeLabel(result.metadata.type)}
-                    </span>
-                  </div>
-
-                  <p className="text-gray-700 leading-relaxed">{result.metadata.description || 'No hay descripción disponible.'}</p>
-                </div>
+                <ResultCard key={result.id} result={result} />
               ))}
             </div>
           )}
