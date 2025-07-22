@@ -9,22 +9,20 @@ import { Search } from "lucide-react"
 
 // --- Definimos la estructura de los datos ---
 // Esta interfaz describe todos los campos posibles que pueden llegar desde n8n
-// para cualquier tipo de resultado (módulo, pregunta, etc.).
+// para cualquier tipo de resultado. Los campos opcionales (?) permiten flexibilidad.
 interface Metadata {
   type: string;
   coursename?: string;
   sectionname?: string;
-  // Campos para módulos y recursos
+  // Campos para módulos/recursos
   modulename?: string;
   moduleprofile?: string;
   moduleurl?: string;
   // Campos para preguntas
   questionprofile?: string;
   question_preview?: string;
-  // Campos genéricos como respaldo
-  title?: string;
-  description?: string;
-  url?: string;
+  dificultad_estimada?: string;
+  habilidad_cognitiva_bloom?: string;
 }
 
 interface SearchResult {
@@ -39,8 +37,10 @@ export default function Component() {
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [selectedType, setSelectedType] = useState("question")
+  // --- Estado para los resultados reales que vienen de n8n ---
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
 
+  // --- URL de tu workflow de n8n ---
   const N8N_WEBHOOK_URL = 'https://pixarron.app.n8n.cloud/webhook/d87b3f36-9d36-4e1a-bb86-4fabdfd2086e';
 
   const handleSearch = async () => {
@@ -54,16 +54,19 @@ export default function Component() {
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // --- Enviamos la consulta y el tipo seleccionado a n8n ---
         body: JSON.stringify({ 
           textoBusqueda: searchQuery,
           tipoDeBusqueda: selectedType 
         }),
       });
 
-      if (!response.ok) throw new Error(`Error: ${response.statusText}`);
+      if (!response.ok) throw new Error(`Error en la respuesta de n8n: ${response.statusText}`);
 
       const data = await response.json();
-      setSearchResults(data.matches || []);
+      // Leemos la respuesta de n8n (puede ser un objeto o un array de objetos)
+      const matches = data.matches || (Array.isArray(data) && data[0]?.matches) || [];
+      setSearchResults(matches);
 
     } catch (error) {
       console.error("Error al conectar con n8n:", error);
@@ -114,17 +117,15 @@ export default function Component() {
     return getTypeLabel(value).toLowerCase()
   }
 
-  // --- Componente de Tarjeta actualizado para usar los campos correctos ---
-  // Esta es la parte clave que soluciona el problema.
+  // --- Componente de Tarjeta actualizado para ser flexible ---
   const ResultCard = ({ result }: { result: SearchResult }) => {
     const { metadata } = result;
     const percentage = Math.round(result.score * 100);
     
-    // Lógica para mostrar el título, descripción y URL correctos,
-    // buscando en los campos que realmente envía n8n.
-    const title = metadata.modulename || metadata.title || 'Resultado sin título';
-    const description = metadata.moduleprofile || metadata.questionprofile || metadata.description || "No hay descripción disponible.";
-    const url = metadata.moduleurl || metadata.question_preview || metadata.url || "#";
+    // Lógica para mostrar el título, descripción y URL correctos
+    const title = metadata.modulename || `Pregunta de ${metadata.coursename}`;
+    const description = metadata.moduleprofile || metadata.questionprofile || "No hay descripción disponible.";
+    const url = metadata.moduleurl || metadata.question_preview || "#";
 
     return (
         <div
@@ -154,11 +155,11 @@ export default function Component() {
             </div>
           </div>
 
-          <div className="flex gap-4 mb-3">
+          <div className="flex flex-wrap gap-4 mb-3">
             {metadata.coursename && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Curso: {metadata.coursename}</span>}
-            {metadata.sectionname && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
-              Sección: {metadata.sectionname}
-            </span>}
+            {metadata.sectionname && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">Sección: {metadata.sectionname}</span>}
+            {metadata.dificultad_estimada && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">{metadata.dificultad_estimada}</span>}
+            {metadata.habilidad_cognitiva_bloom && <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">{metadata.habilidad_cognitiva_bloom}</span>}
             <span className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded font-medium">
               {getTypeLabel(metadata.type)}
             </span>
@@ -233,7 +234,6 @@ export default function Component() {
                 : "Esperando resultados..."}
           </div>
 
-          {/* Tarjetas de resultados */}
           {!isSearching && hasSearched && (
             <div className="space-y-4">
               {searchResults.map((result: SearchResult) => (
